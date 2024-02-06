@@ -38,7 +38,17 @@ VkPhysicalDevice pickPhysicalDevice(VkInstance instance)
     return physicalDevice;
 }
 
-VkDevice createDevice(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, std::vector<const char *> &layers, std::vector<const char *> &extensions)
+VkSurfaceKHR createSurface(VkInstance instance, GLFWwindow *window)
+{
+    VkSurfaceKHR surface;
+    if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create window surface!");
+    }
+    return surface;
+}
+
+VkDevice createDevice(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, std::vector<const char *> &extensions)
 {
     VkDevice device;
 
@@ -81,23 +91,27 @@ VkDevice createDevice(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, std
     return device;
 }
 
-VkImageView createImageView(VkDevice device, VkImage image, VkFormat format)
+VkSwapchainKHR createSwapchain(VkDevice device, VkSurfaceKHR surface, VkSurfaceFormatKHR surfaceFormat, VkExtent2D extent)
 {
-    VkImageView imageView;
-    VkImageViewCreateInfo imageViewCreateInfo{
-        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image = image,
-        .viewType = VK_IMAGE_VIEW_TYPE_2D,
-        .format = format,
-        .subresourceRange = {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .levelCount = 1,
-            .layerCount = 1,
-        },
+    VkSwapchainKHR swapchain;
+    VkSwapchainCreateInfoKHR swapchainCreateInfo{
+        .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+        .surface = surface,
+        .minImageCount = 2,
+        .imageFormat = surfaceFormat.format,
+        .imageColorSpace = surfaceFormat.colorSpace,
+        .imageExtent = extent,
+        .imageArrayLayers = 1,
+        .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+        .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
+        .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+        .presentMode = VK_PRESENT_MODE_FIFO_KHR,
+        .clipped = VK_TRUE,
     };
-    auto ret = vkCreateImageView(device, &imageViewCreateInfo, nullptr, &imageView);
+    auto ret = vkCreateSwapchainKHR(device, &swapchainCreateInfo, nullptr, &swapchain);
     assert(ret == VK_SUCCESS);
-    return imageView;
+    return swapchain;
 }
 
 VkRenderPass createRenderPass(VkDevice device, VkFormat format)
@@ -146,6 +160,25 @@ VkRenderPass createRenderPass(VkDevice device, VkFormat format)
     return renderPass;
 }
 
+VkImageView createImageView(VkDevice device, VkImage image, VkFormat format)
+{
+    VkImageView imageView;
+    VkImageViewCreateInfo imageViewCreateInfo{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image = image,
+        .viewType = VK_IMAGE_VIEW_TYPE_2D,
+        .format = format,
+        .subresourceRange = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .levelCount = 1,
+            .layerCount = 1,
+        },
+    };
+    auto ret = vkCreateImageView(device, &imageViewCreateInfo, nullptr, &imageView);
+    assert(ret == VK_SUCCESS);
+    return imageView;
+}
+
 VkFramebuffer createFramebuffer(VkDevice device, VkRenderPass renderPass, VkImageView imageView, VkExtent2D extent)
 {
     VkFramebuffer framebuffer;
@@ -161,52 +194,6 @@ VkFramebuffer createFramebuffer(VkDevice device, VkRenderPass renderPass, VkImag
     auto ret = vkCreateFramebuffer(device, &framebufferCreateInfo, nullptr, &framebuffer);
     assert(ret == VK_SUCCESS);
     return framebuffer;
-}
-
-VkSurfaceKHR createSurface(VkInstance instance, GLFWwindow *window)
-{
-    VkSurfaceKHR surface;
-    if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create window surface!");
-    }
-    return surface;
-}
-
-VkSwapchainKHR createSwapchain(VkDevice device, VkSurfaceKHR surface, VkSurfaceFormatKHR surfaceFormat, VkExtent2D extent)
-{
-    VkSwapchainKHR swapchain;
-    VkSwapchainCreateInfoKHR swapchainCreateInfo{
-        .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-        .surface = surface,
-        .minImageCount = 2,
-        .imageFormat = surfaceFormat.format,
-        .imageColorSpace = surfaceFormat.colorSpace,
-        .imageExtent = extent,
-        .imageArrayLayers = 1,
-        .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-        .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
-        .preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
-        .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-        .presentMode = VK_PRESENT_MODE_FIFO_KHR,
-        .clipped = VK_TRUE,
-    };
-    auto ret = vkCreateSwapchainKHR(device, &swapchainCreateInfo, nullptr, &swapchain);
-    assert(ret == VK_SUCCESS);
-    return swapchain;
-}
-
-VkShaderModule createShaderModule(VkDevice device, const std::vector<std::byte> &code)
-{
-    VkShaderModule shaderModule;
-    VkShaderModuleCreateInfo shaderModuleCreateInfo{
-        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .codeSize = code.size(),
-        .pCode = reinterpret_cast<const uint32_t *>(code.data()),
-    };
-    auto ret = vkCreateShaderModule(device, &shaderModuleCreateInfo, nullptr, &shaderModule);
-    assert(ret == VK_SUCCESS);
-    return shaderModule;
 }
 
 std::vector<VkFramebuffer> createFramebuffers(VkDevice device, VkRenderPass renderPass, VkSwapchainKHR swapchain, VkExtent2D extent)
@@ -228,6 +215,19 @@ std::vector<VkFramebuffer> createFramebuffers(VkDevice device, VkRenderPass rend
         framebuffers[i] = createFramebuffer(device, renderPass, scImageViews[i], extent);
     }
     return framebuffers;
+}
+
+VkShaderModule createShaderModule(VkDevice device, const std::vector<std::byte> &code)
+{
+    VkShaderModule shaderModule;
+    VkShaderModuleCreateInfo shaderModuleCreateInfo{
+        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .codeSize = code.size(),
+        .pCode = reinterpret_cast<const uint32_t *>(code.data()),
+    };
+    auto ret = vkCreateShaderModule(device, &shaderModuleCreateInfo, nullptr, &shaderModule);
+    assert(ret == VK_SUCCESS);
+    return shaderModule;
 }
 
 VkPipeline createPipeline(VkDevice device, VkRenderPass renderPass, VkShaderModule vert_shaderModule, VkShaderModule frag_shaderModule)
@@ -398,11 +398,10 @@ int main()
     const char *validationLayers[] = {
         "VK_LAYER_KHRONOS_validation",
     };
+    std::vector<const char *> layers(validationLayers, validationLayers + sizeof(validationLayers) / sizeof(validationLayers[0]));
     // enable ext for glfw
     uint32_t glfwExtensionCount = 0;
     const char **glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-
-    std::vector<const char *> layers(validationLayers, validationLayers + sizeof(validationLayers) / sizeof(validationLayers[0]));
     std::vector<const char *> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
 
     VkInstance instance = createInstance(layers, extensions);
@@ -410,7 +409,10 @@ int main()
 
     VkSurfaceKHR surface = createSurface(instance, window.GetWindow());
 
-    VkDevice device = createDevice(physicalDevice, surface, layers, extensions);
+    std::vector<const char *> deviceExtensions = {
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+    };
+    VkDevice device = createDevice(physicalDevice, surface, deviceExtensions);
 
     VkSwapchainKHR swapchain = createSwapchain(device, surface, {VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR}, extent);
 
@@ -433,7 +435,62 @@ int main()
 
     VkQueue queue = createQueue(device, 0);
 
+    // ================== main loop ==================
+
+    std::array<VkClearValue, 2> clearValues{};
+    clearValues[0].color = {0.0f, 0.0f, 0.0f, 1.0f};
+    clearValues[1].depthStencil = {1.0f, 0};
+
+    VkRenderPassBeginInfo renderPassBeginInfo{
+        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        .renderPass = renderPass,
+        .framebuffer = framebuffers[0],
+        .renderArea = {
+            .offset = {0, 0},
+            .extent = extent,
+        },
+        .clearValueCount = static_cast<uint32_t>(clearValues.size()),
+        .pClearValues = clearValues.data(),
+    };
+
+    VkCommandBufferBeginInfo commandBufferBeginInfo{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+    };
+
     VkPipelineStageFlags waitStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    VkSubmitInfo submitInfo{
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = &imageAvailableSemaphore,
+        .pWaitDstStageMask = &waitStageMask,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &commandBuffer,
+        .signalSemaphoreCount = 1,
+        .pSignalSemaphores = &renderFinishedSemaphore,
+    };
+
+    VkPresentInfoKHR presentInfo{
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = &renderFinishedSemaphore,
+        .swapchainCount = 1,
+        .pSwapchains = &swapchain,
+        .pImageIndices = 0,
+    };
+
+    VkViewport viewport{
+        .x = 0.0f,
+        .y = 0.0f,
+        .width = static_cast<float>(window.GetWidth()),
+        .height = static_cast<float>(window.GetHeight()),
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f,
+    };
+
+    VkRect2D scissor{
+        .offset = {0, 0},
+        .extent = {window.GetWidth(), window.GetHeight()},
+    };
 
     uint32_t frameIndex = 0;
 
@@ -457,44 +514,17 @@ int main()
 
         vkResetCommandBuffer(commandBuffer, 0);
 
-        VkCommandBufferBeginInfo commandBufferBeginInfo{
-            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        };
         vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
 
-        std::array<VkClearValue, 2> clearValues{};
-        clearValues[0].color = {0.0f, 0.0f, 0.0f, 1.0f};
-        clearValues[1].depthStencil = {1.0f, 0};
-
-        VkRenderPassBeginInfo renderPassBeginInfo{
-            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-            .renderPass = renderPass,
-            .framebuffer = framebuffers[currentFrameIndex],
-            .clearValueCount = static_cast<uint32_t>(clearValues.size()),
-            .pClearValues = clearValues.data(),
-        };
+        renderPassBeginInfo.framebuffer = framebuffers[currentFrameIndex];
 
         vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
-        VkViewport viewport{
-            .x = 0.0f,
-            .y = 0.0f,
-            .width = static_cast<float>(window.GetWidth()),
-            .height = static_cast<float>(window.GetHeight()),
-            .minDepth = 0.0f,
-            .maxDepth = 1.0f,
-        };
         vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
-        VkRect2D scissor{
-            .offset = {0, 0},
-            .extent = {window.GetWidth(), window.GetHeight()},
-        };
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-
-        vkCmdBindVertexBuffers(commandBuffer, 0, 1, nullptr, nullptr);
 
         vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 
@@ -502,27 +532,10 @@ int main()
 
         vkEndCommandBuffer(commandBuffer);
 
-        VkSubmitInfo submitInfo{
-            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-            .waitSemaphoreCount = 1,
-            .pWaitSemaphores = &imageAvailableSemaphore,
-            .pWaitDstStageMask = &waitStageMask,
-            .commandBufferCount = 1,
-            .pCommandBuffers = &commandBuffer,
-            .signalSemaphoreCount = 1,
-            .pSignalSemaphores = &renderFinishedSemaphore,
-        };
-
         vkQueueSubmit(queue, 1, &submitInfo, fence);
 
-        VkPresentInfoKHR presentInfo{
-            .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-            .waitSemaphoreCount = 1,
-            .pWaitSemaphores = &renderFinishedSemaphore,
-            .swapchainCount = 1,
-            .pSwapchains = &swapchain,
-            .pImageIndices = &currentFrameIndex,
-        };
+        presentInfo.pImageIndices = &currentFrameIndex;
+
         vkQueuePresentKHR(queue, &presentInfo);
 
         auto end_time = std::chrono::system_clock::now();
